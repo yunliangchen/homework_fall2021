@@ -1,5 +1,5 @@
 from typing import Union
-
+from collections import OrderedDict
 import torch
 from torch import nn
 
@@ -47,7 +47,16 @@ def build_mlp(
 
     # TODO: return a MLP. This should be an instance of nn.Module
     # Note: nn.Sequential is an instance of nn.Module.
-    raise NotImplementedError
+    layers = [('linear1', nn.Linear(input_size, size)), ('activation1', activation)]
+    for i in range(2, n_layers+1):
+        layers.append((f'linear{i}', nn.Linear(size, size)))
+        layers.append((f'activation{i}', activation))
+
+    layers.extend([(f'linear{n_layers+1}', nn.Linear(size, output_size)), (f'activation{n_layers+1}', output_activation)])
+
+    model = nn.Sequential(OrderedDict(layers))
+    print(model)
+    return model
 
 
 device = None

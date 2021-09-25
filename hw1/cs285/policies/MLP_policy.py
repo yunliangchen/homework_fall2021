@@ -44,6 +44,8 @@ class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
                 output_size=self.ac_dim,
                 n_layers=self.n_layers,
                 size=self.size,
+                activation='relu',
+                output_activation='sigmoid'
             )
             self.logits_na.to(ptu.device)
             self.mean_net = None
@@ -81,7 +83,7 @@ class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
             observation = obs[None]
 
         # TODO return the action that the policy prescribes
-        raise NotImplementedError
+        return ptu.to_numpy(self.forward(ptu.from_numpy(observation)).sample())
 
     # update/train this policy
     def update(self, observations, actions, **kwargs):
@@ -93,7 +95,12 @@ class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
     # return more flexible objects, such as a
     # `torch.distributions.Distribution` object. It's up to you!
     def forward(self, observation: torch.FloatTensor) -> Any:
-        raise NotImplementedError
+        if self.discrete:
+            probs = self.logits_na(observation)
+            return distributions.Categorical(probs=probs)
+        else:
+            means = self.mean_net(observation)
+            return distributions.Normal(means, self.logstd.exp())
 
 
 #####################################################
@@ -109,7 +116,16 @@ class MLPPolicySL(MLPPolicy):
             adv_n=None, acs_labels_na=None, qvals=None
     ):
         # TODO: update the policy and return the loss
-        loss = TODO
+        if self.discrete:
+            predicted_actions = self(ptu.from_numpy(observations))
+            loss = self.loss(predicted_actions, ptu.from_numpy(actions))
+        else:
+            dist = self(ptu.from_numpy(observations))
+            loss = -dist.log_prob(ptu.from_numpy(actions)).sum() 
+
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
         return {
             # You can add extra logging information here, but keep this line
             'Training Loss': ptu.to_numpy(loss),
