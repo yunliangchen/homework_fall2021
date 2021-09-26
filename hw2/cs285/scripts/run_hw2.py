@@ -5,6 +5,8 @@ from cs285.infrastructure.rl_trainer import RL_Trainer
 from cs285.agents.pg_agent import PGAgent
 
 class PG_Trainer(object):
+    # implement RL using policy gradient by passing a PGAgent into RL_Trainer
+    # calls `RL_Trainer.run_training_loop` for training
 
     def __init__(self, params):
 
@@ -73,6 +75,7 @@ def main():
     parser.add_argument('--learning_rate', '-lr', type=float, default=5e-3)
     parser.add_argument('--n_layers', '-l', type=int, default=2)
     parser.add_argument('--size', '-s', type=int, default=64)
+    parser.add_argument('--gradient_steps', '-n_step', type=int, default=1) # added option for the bonus question
 
     parser.add_argument('--ep_len', type=int) #students shouldn't change this away from env's default
     parser.add_argument('--seed', type=int, default=1)

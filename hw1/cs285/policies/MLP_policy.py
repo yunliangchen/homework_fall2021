@@ -83,7 +83,8 @@ class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
             observation = obs[None]
 
         # TODO return the action that the policy prescribes
-        return ptu.to_numpy(self.forward(ptu.from_numpy(observation)).sample())
+        # don't bother with rsample since we don't need the derivative
+        return ptu.to_numpy(self(ptu.from_numpy(observation)).sample())
 
     # update/train this policy
     def update(self, observations, actions, **kwargs):
@@ -96,11 +97,19 @@ class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
     # `torch.distributions.Distribution` object. It's up to you!
     def forward(self, observation: torch.FloatTensor) -> Any:
         if self.discrete:
-            probs = self.logits_na(observation)
-            return distributions.Categorical(probs=probs)
-        else:
-            means = self.mean_net(observation)
-            return distributions.Normal(means, self.logstd.exp())
+        logits = self.logits_na(observation)
+        action_distribution = distributions.Categorical(logits=logits)
+        return action_distribution
+    else:
+        batch_mean = self.mean_net(observation)
+        scale_tril = torch.diag(torch.exp(self.logstd))
+        batch_dim = batch_mean.shape[0]
+        batch_scale_tril = scale_tril.repeat(batch_dim, 1, 1)
+        action_distribution = distributions.MultivariateNormal(
+            batch_mean,
+            scale_tril=batch_scale_tril,
+        )
+        return action_distribution
 
 
 #####################################################
@@ -116,12 +125,18 @@ class MLPPolicySL(MLPPolicy):
             adv_n=None, acs_labels_na=None, qvals=None
     ):
         # TODO: update the policy and return the loss
-        if self.discrete:
-            predicted_actions = self(ptu.from_numpy(observations))
-            loss = self.loss(predicted_actions, ptu.from_numpy(actions))
-        else:
-            dist = self(ptu.from_numpy(observations))
-            loss = -dist.log_prob(ptu.from_numpy(actions)).sum() 
+        observations = ptu.from_numpy(observations)
+        actions = ptu.from_numpy(actions)
+        action_distribution = self(observations)
+        # method 1: remember to use rsample to allow for pathwise derivatives
+        # the rsample() method uses the reparameterization trick, where the parameterized 
+        # random variable can be constructed via a parameterized deterministic function of 
+        # a parameter-free random variable. The reparameterized sample therefore becomes differentiable.
+        predicted_actions = action_distribution.rsample()
+        loss = self.loss(predicted_actions, actions) # MSE loss on the sampled action
+
+        # method 2: ignore `self.loss` and simply use the log prob on the distribution
+        loss = - action_distribution.log_prob(actions).mean()
 
         self.optimizer.zero_grad()
         loss.backward()

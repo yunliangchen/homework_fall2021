@@ -20,6 +20,18 @@ MAX_VIDEO_LEN = 40 # we overwrite this in the code below
 
 
 class RL_Trainer(object):
+    # The main workflow is to first collect trajs using `collect_training_trajectories()` 
+    # using some `collect_policy` specified by `PG_Trainer`'s `rl_trainer.agent.actor`
+    # and then call `params['agent_class'].train_agent()` which returns a log
+    # This wrapper just takes care of all the logging.
+
+    """
+    The policy gradient algorithm uses the following 3 steps:
+    1. Sample trajectories by generating rollouts under your current policy.
+    2. Estimate returns and compute advantages. This is executed in the train function of `pg_agent.py`
+    3. Train/Update parameters. The computational graph for the policy and the baseline, as well as the
+    update functions, are implemented in `policies/MLP_policy.py`.
+    """
 
     def __init__(self, params):
 
@@ -90,6 +102,8 @@ class RL_Trainer(object):
         #############
         ## AGENT
         #############
+        # added for gradient_steps experiments
+        self.params['agent_params']['gradient_steps'] = self.params['gradient_steps']
 
         agent_class = self.params['agent_class']
         self.agent = agent_class(self.env, self.params['agent_params'])
@@ -153,11 +167,54 @@ class RL_Trainer(object):
     ####################################
     ####################################
 
-    def collect_training_trajectories(self, itr, initial_expertdata, collect_policy, batch_size):
-        # TODO: GETTHIS from HW1
+    def collect_training_trajectories(
+        self,
+        itr,
+        load_initial_expertdata,
+        collect_policy,
+        batch_size,
+    ):
+        if itr == 0:
+            if load_initial_expertdata:
+                paths = pickle.load(open(self.params['expert_data'], 'rb'))
+                return paths, 0, None
+            else:
+                num_transitions_to_sample = self.params['batch_size_initial']
+        else:
+            num_transitions_to_sample = self.params['batch_size']
 
+        print("\nCollecting data to be used for training...")
+        paths, envsteps_this_batch = utils.sample_trajectories(
+            self.env, collect_policy, num_transitions_to_sample, self.params['ep_len'])
+
+        train_video_paths = None
+        if self.logvideo:
+            print('\nCollecting train rollouts to be used for saving videos...')
+            train_video_paths = utils.sample_n_trajectories(self.env, collect_policy, MAX_NVIDEO, MAX_VIDEO_LEN, True)
+
+        return paths, envsteps_this_batch, train_video_paths
+
+
+        # collect more rollouts with the same policy, to be saved as videos in tensorboard
+        train_video_paths = None
+        if self.logvideo:
+            print('\nCollecting train rollouts to be used for saving videos...')
+            train_video_paths = utils.sample_n_trajectories(self.env, collect_policy, MAX_NVIDEO, MAX_VIDEO_LEN, True)
+
+        if save_expert_data_to_disk and itr == 0:
+            with open('expert_data_{}.pkl'.format(self.params['env_name']), 'wb') as file:
+                pickle.dump(paths, file)
+
+        return paths, envsteps_this_batch, train_video_paths
+    
+    
     def train_agent(self):
-        # TODO: GETTHIS from HW1
+        all_logs = []
+        for train_step in range(self.params['num_agent_train_steps_per_iter']):
+            ob_batch, ac_batch, re_batch, next_ob_batch, terminal_batch = self.agent.sample(self.params['train_batch_size'])
+            train_log = self.agent.train(ob_batch, ac_batch, re_batch, next_ob_batch, terminal_batch)
+            all_logs.append(train_log)
+        return all_logs
 
     ####################################
     ####################################

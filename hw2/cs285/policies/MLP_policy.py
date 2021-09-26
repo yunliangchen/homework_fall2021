@@ -10,6 +10,7 @@ from torch import distributions
 
 from cs285.infrastructure import pytorch_util as ptu
 from cs285.policies.base_policy import BasePolicy
+from cs285.infrastructure.utils import normalize
 
 
 class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
@@ -23,6 +24,7 @@ class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
                  learning_rate=1e-4,
                  training=True,
                  nn_baseline=False,
+                 gradient_steps=1,
                  **kwargs
                  ):
         super().__init__(**kwargs)
@@ -36,6 +38,7 @@ class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
         self.learning_rate = learning_rate
         self.training = training
         self.nn_baseline = nn_baseline
+        self.gradient_steps = gradient_steps
 
         if self.discrete:
             self.logits_na = ptu.build_mlp(input_size=self.ob_dim,
@@ -86,7 +89,15 @@ class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
 
     # query the policy with observation(s) to get selected action(s)
     def get_action(self, obs: np.ndarray) -> np.ndarray:
-        # TODO: get this from HW1
+        if len(obs.shape) > 1:
+            observation = obs
+        else:
+            observation = obs[None]
+
+        observation = ptu.from_numpy(observation)
+        action_distribution = self(observation)
+        action = action_distribution.sample()  # don't bother with rsample
+        return ptu.to_numpy(action)
 
     # update/train this policy
     def update(self, observations, actions, **kwargs):
@@ -137,7 +148,17 @@ class MLPPolicyPG(MLPPolicy):
         # HINT4: use self.optimizer to optimize the loss. Remember to
             # 'zero_grad' first
 
-        TODO
+        for _ in range(self.gradient_steps):
+            action_distribution = self(observations)
+            # use the log prob on the distribution
+            log_probs = action_distribution.log_prob(actions)
+            # pseudo-loss = -1/N * sum_{i=1}^N sum_{t=0}^T [log pi(a_i,t|s_i,t) * (Q_i,t)]
+            loss = -(log_probs * advantages).mean()
+
+            self.optimizer.zero_grad()
+            loss.backward()
+            self.optimizer.step()
+        
 
         if self.nn_baseline:
             ## TODO: update the neural network baseline using the q_values as
@@ -148,8 +169,20 @@ class MLPPolicyPG(MLPPolicy):
                 ## updating the baseline. Remember to 'zero_grad' first
             ## HINT2: You will need to convert the targets into a tensor using
                 ## ptu.from_numpy before using it in the loss
-
-            TODO
+            
+            # This NN is a state-dependent baseline that approximates the value function.
+            # In particular, it will be trained to approximate the sum of future rewards starting from a particular state
+            # V_phi^pi(s_t) = sum_{t'=t}^{T-1} E_{pi_theta}[r(s_t', a_t')|s_t]
+            targets = normalize(q_values, np.mean(q_values), np.std(q_values))
+            targets = ptu.from_numpy(targets) # use q-value as the single sample estimate for the value (Lecture 6 - Slide 7)
+            
+            # use the `forward` method of `self.baseline` to get baseline predictions
+            # `observations` is of size [N, 1], we want the output to be of size [N]
+            baseline_predictions = self.baseline(observations).squeeze()
+            baseline_loss = self.baseline_loss(baseline_predictions, targets) # MSE loss on the values
+            self.baseline_optimizer.zero_grad()
+            baseline_loss.backward()
+            self.baseline_optimizer.step()
 
         train_log = {
             'Training Loss': ptu.to_numpy(loss),

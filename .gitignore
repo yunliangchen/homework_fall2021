@@ -2,3 +2,20 @@
 data/
 *.DS_Store
 *~
+
+# Environments
+venv/
+
+# Pycharm
+.idea/
+
+# Distribution / packaging
+*.egg-info/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
