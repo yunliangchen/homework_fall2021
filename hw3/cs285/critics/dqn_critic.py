@@ -52,7 +52,7 @@ class DQNCritic(BaseCritic):
                 reward_n: length: sum_of_path_lengths. Each element in reward_n is a scalar containing
                     the reward for each timestep
                 terminal_n: length: sum_of_path_lengths. Each element in terminal_n is either 1 if the episode ended
-                    at that timestep of 0 if the episode did not end
+                    at that timestep or 0 if the episode did not end
             returns:
                 nothing
         """
@@ -62,11 +62,18 @@ class DQNCritic(BaseCritic):
         reward_n = ptu.from_numpy(reward_n)
         terminal_n = ptu.from_numpy(terminal_n)
 
-        qa_t_values = self.q_net(ob_no)
-        q_t_values = torch.gather(qa_t_values, 1, ac_na.unsqueeze(1)).squeeze(1)
+        qa_t_values = self.q_net(ob_no) # shape: (sum_of_path_lengths, ac_dim), contains the Q-value for all possible actions
+        # torch.gather(input, dim, index) → Tensor
+        # torch.gather creates a new tensor from the input tensor by taking the values from each row along the input dimension dim. 
+        # The values in torch.LongTensor, passed as index, specify which value to take from each 'row'. 
+        # The dimension of the output tensor is same as the dimension of index tensor. 
+        # Extract the Q-value from the Q-table `qa_t_values` corresponding to the actual action in `ac_na`
+        # We get the Q-value of shape (sum_of_path_lengths,) that corresponds to the actual state and action we took.
+        # This is using the current timestep t for calculating the loss
+        q_t_values = torch.gather(input=qa_t_values, dim=1, index=ac_na.unsqueeze(dim=1)).squeeze(dim=1)
         
         # TODO compute the Q-values from the target network 
-        qa_tp1_values = TODO
+        qa_tp1_values = self.q_net_target(next_ob_no) # shape: (sum_of_path_lengths, ac_dim), contains the Q-value for all possible actions for s_{t+1}
 
         if self.double_q:
             # You must fill this part for Q2 of the Q-learning portion of the homework.
@@ -74,14 +81,17 @@ class DQNCritic(BaseCritic):
             # is being updated, but the Q-value for this action is obtained from the
             # target Q-network. Please review Lecture 8 for more details,
             # and page 4 of https://arxiv.org/pdf/1509.06461.pdf is also a good reference.
-            TODO
+            q_tp1_values_current = self.q_net(next_ob_no) # evaluate the Q-values using the current network
+            best_action = q_tp1_values_current.argmax(dim=1) # Select the action using the best Q-value from the current network instead of the target network
+            # Extract the Q-values corresponding to the best actions (max instead of argmax), but the values are calculated using the target network
+            q_tp1 = torch.gather(qa_tp1_values, 1, best_action.unsqueeze(1)).squeeze(1) # This is Q_phi'(s_{t+1), argmax_a'(Q_phi(s_{t+1}, a')))
         else:
             q_tp1, _ = qa_tp1_values.max(dim=1)
 
         # TODO compute targets for minimizing Bellman error
         # HINT: as you saw in lecture, this would be:
             #currentReward + self.gamma * qValuesOfNextTimestep * (not terminal)
-        target = TODO
+        target = reward_n + self.gamma * q_tp1 * (1-terminal_n)
         target = target.detach()
 
         assert q_t_values.shape == target.shape

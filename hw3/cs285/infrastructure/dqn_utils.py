@@ -170,10 +170,29 @@ def lander_optimizer():
 
 def lander_exploration_schedule(num_timesteps):
     return PiecewiseSchedule(
+        # default:
         [
             (0, 1),
             (num_timesteps * 0.1, 0.02),
         ], outside_value=0.02
+        
+        # q3_hparam1: smaller exploration in the end
+        # [
+        #     (0, 1),
+        #     (num_timesteps * 0.1, 0.01),
+        # ], outside_value=0.01
+
+        # q3_hparam2: larger exploration
+        # [
+        #     (0, 1),
+        #     (num_timesteps * 0.1, 0.04),
+        # ], outside_value=0.04
+
+        # q3_hparam3: longer exploration
+        # [
+        #     (0, 1),
+        #     (num_timesteps * 0.2, 0.02),
+        # ], outside_value=0.02
     )
 
 
@@ -497,8 +516,8 @@ class MemoryOptimizedReplayBuffer(object):
     def store_effect(self, idx, action, reward, done):
         """Store effects of action taken after obeserving frame stored
         at index idx. The reason `store_frame` and `store_effect` is broken
-        up into two functions is so that once can call `encode_recent_observation`
-        in between.
+        up into two functions is so that one can call `encode_recent_observation`
+        in between. See `dqn_agent.py` for usage.
 
         Paramters
         ---------
