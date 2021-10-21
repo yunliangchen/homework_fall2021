@@ -19,3 +19,6 @@ venv/
 profile_default/
 ipython_config.py
 
+# ROM https://github.com/openai/atari-py/blob/master/README.md#roms
+ROMS/
+HC ROMS.zip

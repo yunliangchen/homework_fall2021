@@ -148,7 +148,7 @@ class MLPPolicyPG(MLPPolicy):
         # HINT4: use self.optimizer to optimize the loss. Remember to
             # 'zero_grad' first
 
-        for _ in range(self.gradient_steps):
+        for _ in range(self.gradient_steps): # Policy Gradient is on-policy, so gradient_steps should be 1
             action_distribution = self(observations)
             # use the log prob on the distribution
             log_probs = action_distribution.log_prob(actions)
