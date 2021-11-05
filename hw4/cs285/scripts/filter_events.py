@@ -4,7 +4,7 @@ Usage:
 
 Run the command
 ```
-python filter_events.py --events SOME_DIRECTORY
+python cs285/scripts/filter_events.py --event [PATH_TO_EVENT_FILE]
 ```
 
 and it will generate a directory named `SOME_DIRECTORY_filtered` with the video 
@@ -19,7 +19,8 @@ import tqdm
 # Adapted from
 # https://gist.github.com/serycjon/c9ad58ecc3176d87c49b69b598f4d6c6
 
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
+tf.disable_v2_behavior()
 
 
 def parse_arguments():
