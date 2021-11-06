@@ -83,8 +83,27 @@ class MPCPolicy(BasePolicy):
                     running_var = self.cem_alpha * np.var(sampled_action_sequences[elites_indices, :, :], axis=0) + (1-self.cem_alpha) * running_var
             # TODO(Q5): Set `cem_action` to the appropriate action sequence chosen by CEM.
             # The shape should be (horizon, self.ac_dim)
-            best_action_index = all_rewards.argsort()[-1]
-            cem_action = sampled_action_sequences[best_action_index]
+            # best_action_index = all_rewards.argsort()[-1]
+            # cem_action = sampled_action_sequences[best_action_index]
+            cem_action = np.mean(sampled_action_sequences[elites_indices, :, :], axis=0)
+        
+            # alternative implementation
+            # running_mean, running_var = np.zeros((self.horizon, self.ac_dim)), np.zeros((self.horizon, self.ac_dim, self.ac_dim))
+            # for i in range(self.cem_iterations):
+            #     if i == 0:
+            #         sampled_action_sequences = np.random.uniform(low=self.low, high=self.high, size=(num_sequences, horizon, self.ac_dim))
+            #     else:
+            #         for t in range(horizon):
+            #             sampled_action_sequences[:, t, :] = np.random.multivariate_normal(running_mean[t], running_var[t], size=num_sequences)
+            #     all_rewards = self.evaluate_candidate_sequences(sampled_action_sequences, obs)
+            #     elites_indices = all_rewards.argsort()[-self.cem_num_elites:]
+            #     elite_actions = np.take(sampled_action_sequences, elites_indices, 0)
+            #     for t in range(horizon):
+            #         running_mean[t] = self.cem_alpha * np.mean(np.transpose(elite_actions[:, t, :]), axis=1) + (1-self.cem_alpha) * running_mean[t] # The mean matrix is of shape (horizon, self.ac_dim)
+            #         running_var[t] = self.cem_alpha * np.cov(np.transpose(elite_actions[:, t, :])) + (1-self.cem_alpha) * running_var[t] # The var matrix is of shape (horizon, self.ac_dim, self.ac_dim)
+            # # best_action_index = all_rewards.argsort()[-1]
+            # # cem_action = sampled_action_sequences[best_action_index]
+            # cem_action = np.mean(elite_actions, axis=0)
 
             return cem_action[None] # add an axis to the first dimension
         else:
