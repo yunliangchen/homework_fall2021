@@ -54,6 +54,7 @@ class RNDModel(nn.Module, BaseExplorationModel):
         return torch.norm(predictions - targets, dim=1)
 
     def forward_np(self, ob_no):
+        # wraps the forward function to deal with numpy inputs and return numpy outputs
         ob_no = ptu.from_numpy(ob_no)
         error = self(ob_no)
         return ptu.to_numpy(error)

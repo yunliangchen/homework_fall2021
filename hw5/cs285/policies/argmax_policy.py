@@ -8,6 +8,9 @@ class ArgMaxPolicy(object):
         self.critic = critic
         self.use_boltzmann = use_boltzmann
 
+    # RND trains two critics -- an exploitation critic, QR(s; a), and an exploration critic, QE (s; a), 
+    # where the exploitation critic estimates the return of the policy under the actual reward function 
+    # and the exploration critic estimates the return of the policy under the reward bonus 
     def set_critic(self, critic):
         self.critic = critic
 
